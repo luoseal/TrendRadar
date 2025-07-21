@@ -2612,7 +2612,7 @@ class ReportGenerator:
     def _render_serverchan_content(
         report_data: Dict, update_info: Optional[Dict] = None, mode: str = "daily"
     ) -> str:
-        """渲染Server酱内容，标题为可点击跳转的Markdown链接"""
+        """渲染Server酱内容，标题为新闻标题本身且可点击跳转"""
         text_content = ""
         total_titles = sum(
             len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
@@ -2646,8 +2646,6 @@ class ReportGenerator:
                         result = f"[{cleaned_title}]({link_url})"
                     else:
                         result = cleaned_title
-                    if title_data.get("source_name"):
-                        result = f"[{title_data['source_name']}] {result}"
                     text_content += f"  {j}. {result}\n"
                     if j < len(stat["titles"]):
                         text_content += "\n"
