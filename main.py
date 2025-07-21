@@ -66,6 +66,9 @@ class ConfigManager:
         telegram_chat_id = self._get_webhook_config(
             "telegram_chat_id", "TELEGRAM_CHAT_ID"
         )
+        serverchan_sendkey = self._get_webhook_config(
+            "serverchan_sendkey", "SERVERCHAN_SENDKEY"
+        )
 
         # 输出配置来源信息
         webhook_sources = []
@@ -88,6 +91,9 @@ class ConfigManager:
                 "环境变量" if os.environ.get("TELEGRAM_CHAT_ID") else "配置文件"
             )
             webhook_sources.append(f"Telegram({token_source}/{chat_source})")
+        if serverchan_sendkey:
+            source = "环境变量" if os.environ.get("SERVERCHAN_SENDKEY") else "配置文件"
+            webhook_sources.append(f"Server酱({source})")
 
         if webhook_sources:
             print(f"Webhook 配置来源: {', '.join(webhook_sources)}")
@@ -121,6 +127,7 @@ class ConfigManager:
             "WEWORK_WEBHOOK_URL": wework_url,
             "TELEGRAM_BOT_TOKEN": telegram_token,
             "TELEGRAM_CHAT_ID": telegram_chat_id,
+            "SERVERCHAN_SENDKEY": serverchan_sendkey,
             "WEIGHT_CONFIG": {
                 "RANK_WEIGHT": self.config_data["weight"]["rank_weight"],
                 "FREQUENCY_WEIGHT": self.config_data["weight"]["frequency_weight"],
@@ -2244,6 +2251,7 @@ class ReportGenerator:
         wework_url = CONFIG["WEWORK_WEBHOOK_URL"]
         telegram_token = CONFIG["TELEGRAM_BOT_TOKEN"]
         telegram_chat_id = CONFIG["TELEGRAM_CHAT_ID"]
+        serverchan_sendkey = CONFIG["SERVERCHAN_SENDKEY"]
 
         update_info_to_send = update_info if CONFIG["SHOW_VERSION_UPDATE"] else None
 
@@ -2285,6 +2293,17 @@ class ReportGenerator:
             results["telegram"] = ReportGenerator._send_to_telegram(
                 telegram_token,
                 telegram_chat_id,
+                report_data,
+                report_type,
+                update_info_to_send,
+                proxy_url,
+                mode,
+            )
+
+        # 发送到 Server酱
+        if serverchan_sendkey:
+            results["serverchan"] = ReportGenerator._send_to_serverchan(
+                serverchan_sendkey,
                 report_data,
                 report_type,
                 update_info_to_send,
@@ -2546,6 +2565,49 @@ class ReportGenerator:
         print(f"Telegram所有 {len(batches)} 批次发送完成 [{report_type}]")
         return True
 
+    @staticmethod
+    def _send_to_serverchan(
+        sendkey: str,
+        report_data: Dict,
+        report_type: str,
+        update_info: Optional[Dict] = None,
+        proxy_url: Optional[str] = None,
+        mode: str = "daily",
+    ) -> bool:
+        """发送到Server酱"""
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        # Server酱内容只支持markdown，直接用dingtalk内容
+        text_content = ReportGenerator._render_dingtalk_content(
+            report_data, update_info, mode
+        )
+        title = f"TrendRadar 热点分析报告 - {report_type}"
+        payload = {
+            "title": title,
+            "desp": text_content,
+        }
+        proxies = None
+        if proxy_url:
+            proxies = {"http": proxy_url, "https": proxy_url}
+        url = f"https://sctapi.ftqq.com/{sendkey}.send"
+        try:
+            response = requests.post(
+                url, headers=headers, data=payload, proxies=proxies, timeout=30
+            )
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("code") == 0:
+                    print(f"Server酱通知发送成功 [{report_type}]")
+                    return True
+                else:
+                    print(f"Server酱通知发送失败 [{report_type}]，错误：{result.get('message')}")
+                    return False
+            else:
+                print(f"Server酱通知发送失败 [{report_type}]，状态码：{response.status_code}")
+                return False
+        except Exception as e:
+            print(f"Server酱通知发送出错 [{report_type}]：{e}")
+            return False
+
 
 @dataclass
 class ModeStrategy:
@@ -2677,6 +2739,7 @@ class NewsAnalyzer:
                 CONFIG["DINGTALK_WEBHOOK_URL"],
                 CONFIG["WEWORK_WEBHOOK_URL"],
                 (CONFIG["TELEGRAM_BOT_TOKEN"] and CONFIG["TELEGRAM_CHAT_ID"]),
+                CONFIG["SERVERCHAN_SENDKEY"],
             ]
         )
 
