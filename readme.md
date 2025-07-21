@@ -16,6 +16,7 @@
 [![Telegram通知](https://img.shields.io/badge/Telegram-通知支持-00D4AA?style=flat-square)](https://telegram.org/)
 [![dingtalk通知](https://img.shields.io/badge/钉钉-通知支持-00D4AA?style=flat-square)](#)
 [![飞书通知](https://img.shields.io/badge/飞书-通知支持-00D4AA?style=flat-square)](https://www.feishu.cn/)
+[![Server酱通知](https://img.shields.io/badge/Server酱-通知支持-00D4AA?style=flat-square)](https://sct.ftqq.com/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-自动化-2088FF?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/sansan0/TrendRadar)
 [![GitHub Pages](https://img.shields.io/badge/GitHub_Pages-部署-4285F4?style=flat-square&logo=github&logoColor=white)](https://sansan0.github.io/TrendRadar)
 [![Docker](https://img.shields.io/badge/Docker-部署-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/)
@@ -72,6 +73,7 @@
 ### **多渠道实时推送**
 
 支持企业微信、飞书、钉钉、Telegram 主流聊天工具，消息直达手机
+支持 Server酱（微信推送）
 
 ### **零技术门槛部署**
 
@@ -587,6 +589,32 @@ platforms:
    docker exec -it trend-radar python manage.py help
    ```
 
+
+## 🛠️ 配置说明
+
+### 通知渠道配置
+
+- 企业微信 webhook
+- 飞书 webhook
+- 钉钉 webhook
+- Telegram Bot Token & Chat ID
+- Server酱 SendKey
+
+在 `config/config.yaml` 的 `notification.webhooks` 下填写对应渠道的参数。例如：
+
+```yaml
+notification:
+  enable_notification: true
+  webhooks:
+    feishu_url: "https://open.feishu.cn/xxx"
+    dingtalk_url: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
+    wework_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
+    telegram_bot_token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    telegram_chat_id: "123456789"
+    serverchan_sendkey: "SCTxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+Server酱获取SendKey请参考：[Server酱官网](https://sct.ftqq.com/)
 
 ## ☕ 赞助让代码更香.jpg
 
