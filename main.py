@@ -2612,7 +2612,7 @@ class ReportGenerator:
     def _render_serverchan_content(
         report_data: Dict, update_info: Optional[Dict] = None, mode: str = "daily"
     ) -> str:
-        """渲染Server酱内容，标题为[来源] 新闻标题且可点击跳转"""
+        """渲染Server酱内容，每条新闻前加来源名，空格分隔"""
         text_content = ""
         total_titles = sum(
             len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
@@ -2641,12 +2641,12 @@ class ReportGenerator:
                     text_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
                 for j, title_data in enumerate(stat["titles"], 1):
                     cleaned_title = DataProcessor.clean_title(title_data["title"])
-                    source_name = title_data.get("source_name", "")
                     link_url = title_data.get("mobile_url") or title_data.get("url")
+                    source_name = title_data.get("source_name", "")
                     if link_url:
-                        result = f"[{source_name}] [{cleaned_title}]({link_url})"
+                        result = f"{source_name} [{cleaned_title}]({link_url})"
                     else:
-                        result = f"[{source_name}] {cleaned_title}"
+                        result = f"{source_name} {cleaned_title}"
                     text_content += f"  {j}. {result}\n"
                     if j < len(stat["titles"]):
                         text_content += "\n"
@@ -2670,12 +2670,12 @@ class ReportGenerator:
                 text_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
                 for j, title_data in enumerate(source_data["titles"], 1):
                     cleaned_title = DataProcessor.clean_title(title_data["title"])
-                    source_name = title_data.get("source_name", "")
                     link_url = title_data.get("mobile_url") or title_data.get("url")
+                    source_name = title_data.get("source_name", "")
                     if link_url:
-                        result = f"[{source_name}] [{cleaned_title}]({link_url})"
+                        result = f"{source_name} [{cleaned_title}]({link_url})"
                     else:
-                        result = f"[{source_name}] {cleaned_title}"
+                        result = f"{source_name} {cleaned_title}"
                     text_content += f"  {j}. {result}\n"
                 text_content += "\n"
         if report_data["failed_ids"]:
