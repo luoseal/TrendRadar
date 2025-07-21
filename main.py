@@ -2612,7 +2612,7 @@ class ReportGenerator:
     def _render_serverchan_content(
         report_data: Dict, update_info: Optional[Dict] = None, mode: str = "daily"
     ) -> str:
-        """渲染Server酱内容，只显示标题不带链接"""
+        """渲染Server酱内容，标题为可点击跳转的Markdown链接"""
         text_content = ""
         total_titles = sum(
             len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
@@ -2640,12 +2640,14 @@ class ReportGenerator:
                 else:
                     text_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
                 for j, title_data in enumerate(stat["titles"], 1):
-                    # 只显示标题，不带链接
                     cleaned_title = DataProcessor.clean_title(title_data["title"])
-                    if title_data.get("source_name"):
-                        result = f"[{title_data['source_name']}] {cleaned_title}"
+                    link_url = title_data.get("mobile_url") or title_data.get("url")
+                    if link_url:
+                        result = f"[{cleaned_title}]({link_url})"
                     else:
                         result = cleaned_title
+                    if title_data.get("source_name"):
+                        result = f"[{title_data['source_name']}] {result}"
                     text_content += f"  {j}. {result}\n"
                     if j < len(stat["titles"]):
                         text_content += "\n"
@@ -2669,7 +2671,12 @@ class ReportGenerator:
                 text_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
                 for j, title_data in enumerate(source_data["titles"], 1):
                     cleaned_title = DataProcessor.clean_title(title_data["title"])
-                    text_content += f"  {j}. {cleaned_title}\n"
+                    link_url = title_data.get("mobile_url") or title_data.get("url")
+                    if link_url:
+                        result = f"[{cleaned_title}]({link_url})"
+                    else:
+                        result = cleaned_title
+                    text_content += f"  {j}. {result}\n"
                 text_content += "\n"
         if report_data["failed_ids"]:
             if text_content and "暂无匹配" not in text_content:
