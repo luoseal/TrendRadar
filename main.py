@@ -160,6 +160,32 @@ def load_config():
         "ntfy_token", ""
     )
 
+    # Server酱配置（支持新旧配置项名称以保持兼容性）
+    config["SERVERCHAN_WEBHOOK_URL"] = (
+        os.environ.get("SERVERCHAN_WEBHOOK_URL", "").strip()
+        or os.environ.get("SERVERCHAIN_WEBHOOK_URL", "").strip()
+        or webhooks.get("serverchan_webhook_url", "")
+        or webhooks.get("serverchain_webhook_url", "")
+    )
+    config["SERVERCHAN_SENDKEY"] = (
+        os.environ.get("SERVERCHAN_SENDKEY", "").strip()
+        or os.environ.get("SERVERCHAIN_SENDKEY", "").strip()
+        or webhooks.get("serverchan_sendkey", "")
+        or webhooks.get("serverchain_sendkey", "")
+    )
+    config["SERVERCHAN_CHANNEL"] = (
+        os.environ.get("SERVERCHAN_CHANNEL", "").strip()
+        or os.environ.get("SERVERCHAIN_CHANNEL", "").strip()
+        or webhooks.get("serverchan_channel", "")
+        or webhooks.get("serverchain_channel", "")
+    )
+    config["SERVERCHAN_LINK_FORMAT"] = (
+        os.environ.get("SERVERCHAN_LINK_FORMAT", "").strip()
+        or os.environ.get("SERVERCHAIN_LINK_FORMAT", "").strip()
+        or webhooks.get("serverchan_link_format", "markdown")
+        or webhooks.get("serverchain_link_format", "markdown")
+    )
+
     # 输出配置来源信息
     notification_sources = []
     if config["FEISHU_WEBHOOK_URL"]:
@@ -184,6 +210,9 @@ def load_config():
     if config["NTFY_SERVER_URL"] and config["NTFY_TOPIC"]:
         server_source = "环境变量" if os.environ.get("NTFY_SERVER_URL") else "配置文件"
         notification_sources.append(f"ntfy({server_source})")
+    if config["SERVERCHAN_WEBHOOK_URL"]:
+        source = "环境变量" if (os.environ.get("SERVERCHAN_WEBHOOK_URL") or os.environ.get("SERVERCHAIN_WEBHOOK_URL")) else "配置文件"
+        notification_sources.append(f"Server酱({source})")
 
     if notification_sources:
         print(f"通知渠道配置来源: {', '.join(notification_sources)}")
@@ -223,6 +252,59 @@ def clean_title(title: str) -> str:
     cleaned_title = re.sub(r"\s+", " ", cleaned_title)
     cleaned_title = cleaned_title.strip()
     return cleaned_title
+
+
+def extract_title_from_url(url: str) -> str:
+    """从URL中提取有意义的标题"""
+    if not url:
+        return ""
+
+    try:
+        # 移除协议前缀
+        clean_url = url.replace('https://', '').replace('http://', '')
+
+        # 移除查询参数和锚点
+        if '?' in clean_url:
+            clean_url = clean_url.split('?')[0]
+        if '#' in clean_url:
+            clean_url = clean_url.split('#')[0]
+
+        # 移除末尾的斜杠
+        clean_url = clean_url.rstrip('/')
+
+        # 分割域名和路径
+        parts = clean_url.split('/')
+
+        if len(parts) > 1:
+            # 有路径，尝试从路径中提取标题
+            path_parts = [p for p in parts[1:] if p and p not in ['index', 'home', 'default']]
+            if path_parts:
+                # 取最后一个有意义的路径部分
+                title_part = path_parts[-1]
+                # 移除文件扩展名
+                if '.' in title_part:
+                    title_part = title_part.split('.')[0]
+                # 替换常见分隔符为空格
+                title_part = title_part.replace('-', ' ').replace('_', ' ')
+                # 标题化处理
+                if title_part and len(title_part) > 2:
+                    return title_part[:50]  # 限制长度
+
+        # 如果没有有效路径，使用域名
+        domain = parts[0]
+        # 移除www前缀
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        # 移除常见的顶级域名
+        if '.' in domain:
+            domain_name = domain.split('.')[0]
+            return domain_name if domain_name else domain
+
+        return domain[:30]  # 限制长度
+
+    except Exception:
+        # 如果解析失败，返回截断的URL
+        return url[:30] + "..." if len(url) > 30 else url
 
 
 def ensure_directory_exists(directory: str):
@@ -1338,7 +1420,7 @@ def prepare_report_data(
                         "ranks": ranks,
                         "rank_threshold": CONFIG["RANK_THRESHOLD"],
                         "url": url,
-                        "mobile_url": mobile_url,
+                        "mobileUrl": mobile_url,
                         "is_new": True,
                     }
                     source_titles.append(processed_title)
@@ -1367,7 +1449,7 @@ def prepare_report_data(
                 "ranks": title_data["ranks"],
                 "rank_threshold": title_data["rank_threshold"],
                 "url": title_data.get("url", ""),
-                "mobile_url": title_data.get("mobileUrl", ""),
+                "mobileUrl": title_data.get("mobileUrl", ""),
                 "is_new": title_data.get("is_new", False),
             }
             processed_titles.append(processed_title)
@@ -1392,16 +1474,16 @@ def prepare_report_data(
 
 
 def format_title_for_platform(
-    platform: str, title_data: Dict, show_source: bool = True
+    platform: str, title_data: Dict, show_source: bool = True, config: Optional[Dict] = None
 ) -> str:
     """统一的标题格式化方法"""
     rank_display = format_rank_display(
         title_data["ranks"], title_data["rank_threshold"], platform
     )
 
-    link_url = title_data["mobile_url"] or title_data["url"]
+    link_url = title_data.get("mobileUrl") or title_data.get("url")
 
-    cleaned_title = clean_title(title_data["title"])
+    cleaned_title = clean_title(title_data.get("title", ""))
 
     if platform == "feishu":
         if link_url:
@@ -1518,7 +1600,7 @@ def format_title_for_platform(
             title_data["ranks"], title_data["rank_threshold"], "html"
         )
 
-        link_url = title_data["mobile_url"] or title_data["url"]
+        link_url = title_data.get("mobileUrl") or title_data.get("url")
 
         escaped_title = html_escape(cleaned_title)
         escaped_source_name = html_escape(title_data["source_name"])
@@ -1543,6 +1625,82 @@ def format_title_for_platform(
             formatted_title = f"<div class='new-title'>🆕 {formatted_title}</div>"
 
         return formatted_title
+
+    elif platform == "serverchan":
+        # Server酱格式，优化链接兼容性
+        title_prefix = "🆕 " if title_data.get("is_new") else ""
+
+        # 确保标题不为空，优先使用原标题，然后从URL提取，最后使用默认值
+        title_from_url = False  # 标记是否从URL提取标题
+
+        # 获取原始标题并清理
+        raw_title = title_data.get("title", "")
+        #print(f"raw_title={raw_title},cleaned_title={cleaned_title}")
+        if raw_title and cleaned_title:
+            # 有原始标题且清理后非空，使用清理后的标题
+            display_title = cleaned_title
+        elif raw_title and raw_title.strip():
+            # 有原始标题但清理后为空，使用原始标题（去除前后空格）
+            display_title = raw_title.strip()
+        else:
+            display_title = "无标题"
+
+        # 获取链接格式配置，默认使用 markdown
+        link_format = "markdown"
+        if config and config.get("SERVERCHAN_LINK_FORMAT"):
+            link_format = config["SERVERCHAN_LINK_FORMAT"].lower()
+
+        # Server酱链接格式优化：提供多种兼容性方案
+        if link_url:
+            # 过滤并清理URL，确保格式正确
+            clean_url = link_url.strip()
+
+            # 确保URL格式正确（添加协议前缀）
+            if clean_url and not clean_url.startswith(('http://', 'https://')):
+                if clean_url.startswith('//'):
+                    clean_url = 'https:' + clean_url
+                elif clean_url.startswith('/'):
+                    # 相对路径，跳过
+                    clean_url = ""
+                else:
+                    clean_url = 'https://' + clean_url
+
+            # 清理标题中可能干扰Markdown解析的字符
+            safe_title = display_title.replace('[', '［').replace(']', '］').replace('(', '（').replace(')', '）')
+
+            if clean_url:
+                # 智能选择链接格式
+                # 如果标题是从URL提取的，优先使用text格式以显示完整链接
+                # 如果用户强制指定了格式，则使用用户配置
+                effective_format = link_format
+                if title_from_url and link_format == "markdown":
+                    # 对于从URL提取标题的情况，text格式更清晰
+                    effective_format = "text"
+
+                if effective_format == "text":
+                    # 方案2：纯文本+链接分行显示，兼容性更好
+                    clickable_title = f"{safe_title}\n🔗 {clean_url}"
+                else:
+                    # 方案1：标准Markdown链接（默认）
+                    clickable_title = f"[{safe_title}]({clean_url})"
+            else:
+                clickable_title = display_title
+        else:
+            clickable_title = display_title
+        print(f"clickable_title={clickable_title}")
+        if show_source:
+            result = f"\[{title_data['source_name']}\] {title_prefix}{clickable_title}"
+        else:
+            result = f"{title_prefix}{clickable_title}"
+
+        if rank_display:
+            result += f" {rank_display}"
+        if title_data.get("time_display"):
+            result += f" - {title_data['time_display']}"
+        if title_data.get("count", 0) > 1:
+            result += f" \({title_data['count']}次\)"
+
+        return result
 
     else:
         return cleaned_title
@@ -2183,7 +2341,7 @@ def render_html_content(
 
                 # 处理标题和链接
                 escaped_title = html_escape(title_data["title"])
-                link_url = title_data.get("mobile_url") or title_data.get("url", "")
+                link_url = title_data.get("mobileUrl") or title_data.get("url", "")
 
                 if link_url:
                     escaped_url = html_escape(link_url)
@@ -2242,7 +2400,7 @@ def render_html_content(
 
                 # 处理新增新闻的链接
                 escaped_title = html_escape(title_data["title"])
-                link_url = title_data.get("mobile_url") or title_data.get("url", "")
+                link_url = title_data.get("mobileUrl") or title_data.get("url", "")
 
                 if link_url:
                     escaped_url = html_escape(link_url)
@@ -2777,6 +2935,79 @@ def render_dingtalk_content(
     return text_content
 
 
+def render_serverchan_content(
+    report_data: Dict, update_info: Optional[Dict] = None, mode: str = "daily", config: Optional[Dict] = None
+) -> str:
+    """渲染Server酱内容，简洁格式，确保链接可点击，风格接近HTML版本"""
+    text_content = ""
+
+    total_titles = sum(
+        len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
+    )
+    now = get_beijing_time()
+
+    # 简洁的头部信息，类似HTML版本
+    text_content += f"📈 热点新闻分析\n"
+    text_content += f"总新闻数：{total_titles} 条\n"
+    text_content += f"时间：{now.strftime('%m-%d %H:%M')}\n"
+    text_content += f"类型：热点分析报告\n\n"
+
+    if report_data["stats"]:
+        total_count = len(report_data["stats"])
+
+        for i, stat in enumerate(report_data["stats"]):
+            word = stat["word"]
+            count = stat["count"]
+
+            # 使用简洁的标题格式
+            if count >= 10:
+                text_content += f"🔥 [{i + 1}/{total_count}] {word} : {count} 条\n\n"
+            elif count >= 5:
+                text_content += f"📈 [{i + 1}/{total_count}] {word} : {count} 条\n\n"
+            else:
+                text_content += f"📌 [{i + 1}/{total_count}] {word} : {count} 条\n\n"
+
+            for j, title_data in enumerate(stat["titles"], 1):
+                formatted_title = format_title_for_platform(
+                    "serverchan", title_data, show_source=True, config=config
+                )
+                text_content += f"{j}. {formatted_title}\n"
+
+            if i < len(report_data["stats"]) - 1:
+                text_content += f"\n━━━━━━━━━━━━━━━━━━━\n\n"
+
+    if report_data["new_titles"]:
+        if text_content and "暂无匹配" not in text_content:
+            text_content += f"\n━━━━━━━━━━━━━━━━━━━\n\n"
+
+        text_content += f"🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条)\n\n"
+
+        for source_data in report_data["new_titles"]:
+            text_content += f"{source_data['source_name']} ({len(source_data['titles'])} 条):\n"
+
+            for j, title_data in enumerate(source_data["titles"], 1):
+                title_data_copy = title_data.copy()
+                title_data_copy["is_new"] = False
+                formatted_title = format_title_for_platform(
+                    "serverchan", title_data_copy, show_source=False, config=config
+                )
+                text_content += f"  {j}. {formatted_title}\n"
+
+            text_content += "\n"
+
+    if report_data["failed_ids"]:
+        if text_content and "暂无匹配" not in text_content:
+            text_content += f"\n━━━━━━━━━━━━━━━━━━━\n\n"
+        text_content += f"⚠️ 部分平台获取失败：{', '.join(report_data['failed_ids'])}\n\n"
+
+    text_content += f"\n更新时间：{now.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    if update_info:
+        text_content += f"\nTrendRadar 发现新版本 {update_info['remote_version']}，当前 {update_info['current_version']}"
+
+    return text_content
+
+
 def split_content_into_batches(
     report_data: Dict,
     format_type: str,
@@ -3211,9 +3442,14 @@ def send_to_notifications(
     proxy_url: Optional[str] = None,
     mode: str = "daily",
     html_file_path: Optional[str] = None,
+    config: Optional[Dict] = None,
 ) -> Dict[str, bool]:
     """发送数据到多个通知平台"""
     results = {}
+
+    # 如果没有传递配置，使用全局CONFIG
+    if config is None:
+        config = CONFIG
 
     if CONFIG["SILENT_PUSH"]["ENABLED"]:
         push_manager = PushRecordManager()
@@ -3249,6 +3485,9 @@ def send_to_notifications(
     ntfy_server_url = CONFIG["NTFY_SERVER_URL"]
     ntfy_topic = CONFIG["NTFY_TOPIC"]
     ntfy_token = CONFIG.get("NTFY_TOKEN", "")
+    serverchan_webhook_url = CONFIG["SERVERCHAN_WEBHOOK_URL"]
+    serverchan_sendkey = CONFIG.get("SERVERCHAN_SENDKEY", "")
+    serverchan_channel = CONFIG.get("SERVERCHAN_CHANNEL", "")
 
     update_info_to_send = update_info if CONFIG["SHOW_VERSION_UPDATE"] else None
 
@@ -3305,6 +3544,20 @@ def send_to_notifications(
             html_file_path,
             email_smtp_server,
             email_smtp_port,
+        )
+
+    # 发送到 Server酱
+    if serverchan_webhook_url:
+        results["serverchan"] = send_to_serverchan(
+            serverchan_webhook_url,
+            serverchan_sendkey,
+            serverchan_channel,
+            report_data,
+            report_type,
+            update_info_to_send,
+            proxy_url,
+            mode,
+            config,
         )
 
     if not results:
@@ -3865,6 +4118,159 @@ def send_to_ntfy(
         return False
 
 
+def send_to_serverchan(
+    webhook_url: str,
+    sendkey: str,
+    channel: Optional[str],
+    report_data: Dict,
+    report_type: str,
+    update_info: Optional[Dict] = None,
+    proxy_url: Optional[str] = None,
+    mode: str = "daily",
+    config: Optional[Dict] = None,
+) -> bool:
+    """发送到Server酱（支持分批发送）"""
+    headers = {"Content-Type": "application/json"}
+
+    proxies = None
+    if proxy_url:
+        proxies = {"http": proxy_url, "https": proxy_url}
+
+    # 构建消息内容 - 使用Server酱专用格式，优化链接点击体验
+    text_content = render_serverchan_content(report_data, update_info, mode, config)
+
+    # Server酱的API URL处理
+    # 如果URL包含<SENDKEY>占位符，替换为实际的sendkey
+    # 如果URL已经包含sendkey，直接使用
+    # 如果URL不包含sendkey，则构建完整的API URL
+    if sendkey and "<SENDKEY>" in webhook_url:
+        # URL包含占位符，替换为实际sendkey
+        api_url = webhook_url.replace("<SENDKEY>", sendkey)
+        print(f"替换占位符后的API URL: {api_url}")
+    elif sendkey and sendkey in webhook_url:
+        # URL已经包含sendkey，直接使用
+        api_url = webhook_url
+        print(f"使用完整API URL: {api_url}")
+    elif sendkey:
+        # URL不包含sendkey，需要构建
+        if webhook_url.endswith('.send'):
+            # 替换URL中的sendkey部分
+            base_url = webhook_url.rsplit('/', 1)[0]
+            api_url = f"{base_url}/{sendkey}.send"
+        else:
+            api_url = f"{webhook_url.rstrip('/')}/{sendkey}.send"
+        print(f"构建API URL: {api_url}")
+    else:
+        api_url = webhook_url
+        print(f"使用原始URL: {api_url}")
+
+    total_titles = sum(
+        len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
+    )
+
+    # 直接分割已渲染的内容，确保使用Server酱优化格式
+    max_bytes = 20000  # Server酱的消息大小限制
+    batches = []
+
+    # 如果内容小于限制，直接使用
+    if len(text_content.encode("utf-8")) <= max_bytes:
+        batches.append(text_content)
+    else:
+        # 简单分割长内容
+        lines = text_content.split('\n')
+        current_batch = ""
+
+        for line in lines:
+            test_content = current_batch + line + '\n'
+            if len(test_content.encode("utf-8")) > max_bytes and current_batch:
+                # 当前批次已满，开始新批次
+                batches.append(current_batch.rstrip())
+                current_batch = line + '\n'
+            else:
+                current_batch = test_content
+
+        # 添加最后一个批次
+        if current_batch.strip():
+            batches.append(current_batch.rstrip())
+
+    total_batches = len(batches)
+    print(f"Server酱消息分为 {total_batches} 批次发送 [{report_type}]")
+
+    success_count = 0
+    for batch_num, batch_content in enumerate(batches, 1):
+        batch_size = len(batch_content.encode("utf-8"))
+        print(
+            f"发送Server酱第 {batch_num}/{total_batches} 批次，大小：{batch_size} 字节 [{report_type}]"
+        )
+
+        # 构建Server酱消息标题和内容
+        title = f"TrendRadar {report_type}"
+        desp = batch_content
+
+        # 如果有多个批次，在标题和内容中标注批次信息
+        if total_batches > 1:
+            title = f"TrendRadar {report_type} ({batch_num}/{total_batches})"
+            desp = f"📄 **第 {batch_num}/{total_batches} 部分**\n\n{batch_content}"
+
+        # 如果指定了频道，添加到内容开头
+        if channel:
+            desp = f"📢 频道：{channel}\n\n{desp}"
+
+        # Server酱 API payload
+        batch_payload = {
+            "title": title,
+            "desp": desp
+        }
+        print(f"batch_payload={batch_payload}")
+        try:
+            response = requests.post(
+                api_url,
+                json=batch_payload,
+                headers=headers,
+                proxies=proxies,
+                timeout=(10, 30),
+            )
+
+            if response.status_code == 200:
+                print(
+                    f"Server酱第 {batch_num}/{total_batches} 批次发送成功 [{report_type}]"
+                )
+                success_count += 1
+            else:
+                print(
+                    f"Server酱第 {batch_num}/{total_batches} 批次发送失败 [{report_type}]，状态码：{response.status_code}"
+                )
+                try:
+                    error_detail = response.text[:200]
+                    print(f"错误详情：{error_detail}")
+                except:
+                    pass
+
+        except requests.exceptions.ConnectTimeout:
+            print(f"Server酱第 {batch_num}/{total_batches} 批次连接超时 [{report_type}]")
+        except requests.exceptions.ReadTimeout:
+            print(f"Server酱第 {batch_num}/{total_batches} 批次读取超时 [{report_type}]")
+        except requests.exceptions.ConnectionError as e:
+            print(f"Server酱第 {batch_num}/{total_batches} 批次连接错误 [{report_type}]：{e}")
+        except Exception as e:
+            print(f"Server酱第 {batch_num}/{total_batches} 批次发送异常 [{report_type}]：{e}")
+
+        # 批次间隔
+        if batch_num < total_batches:
+            time.sleep(CONFIG["BATCH_SEND_INTERVAL"])
+
+    # 判断整体发送是否成功
+    if success_count == total_batches:
+        print(f"Server酱所有 {total_batches} 批次发送完成 [{report_type}]")
+        return True
+    elif success_count > 0:
+        print(f"Server酱部分发送成功：{success_count}/{total_batches} 批次 [{report_type}]")
+        return True  # 部分成功也视为成功
+    else:
+        print(f"Server酱发送完全失败 [{report_type}]")
+        return False
+
+
 # === 主分析器 ===
 class NewsAnalyzer:
     """新闻分析器"""
@@ -3977,6 +4383,7 @@ class NewsAnalyzer:
                     and CONFIG["EMAIL_TO"]
                 ),
                 (CONFIG["NTFY_SERVER_URL"] and CONFIG["NTFY_TOPIC"]),
+                CONFIG["SERVERCHAN_WEBHOOK_URL"],
             ]
         )
 
