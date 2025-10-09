@@ -61,6 +61,10 @@ notification:
     ntfy_server_url: "https://ntfy.sh" # ntfy服务器地址，默认使用公共服务，可改为自托管地址
     ntfy_topic: "" # ntfy主题名称
     ntfy_token: "" # ntfy访问令牌（可选，用于私有主题）
+    serverchain_webhook_url: "https://sctapi.ftqq.com/<SENDKEY>.send" # ServerChain webhook URL
+    serverchain_sendkey: "SCT226484T3AMHXU2TGaQE1ub4IJ3D9s8V" # ServerChain sendkey 身份验证密钥
+    serverchain_channel: "" # ServerChain 频道名称（可选）
+    serverchain_link_format: "markdown" # ServerChain 链接格式：markdown（[标题](链接)）或 text（标题\n🔗 链接）
 
 # 用于让关注度更高的新闻在更前面显示，即用算法重新组合不同平台的热搜排序形成你侧重的热搜，合起来是 1 就行
 weight:
